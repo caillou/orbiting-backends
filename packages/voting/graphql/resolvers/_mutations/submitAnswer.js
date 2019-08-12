@@ -85,7 +85,8 @@ module.exports = async (_, { answer: { id, questionId, payload } }, context) => 
           questionId,
           questionnaireId: questionnaire.id,
           userId: me.id,
-          payload
+          payload,
+          submitted: questionnaire.submitAnswersImmediately
         })
       }
     }
