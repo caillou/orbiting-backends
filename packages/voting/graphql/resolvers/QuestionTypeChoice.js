@@ -1,7 +1,8 @@
 const { resultChoice } = require('../../lib/Question')
+const { userMainstreamScore } = require('../../lib/Question/Choice')
 
 module.exports = {
-  async result (question, args, context) {
+  result (question, args, context) {
     if (question.result !== undefined) {
       const { payload } = question.result
       if (!payload) {
@@ -21,5 +22,6 @@ module.exports = {
       return null
     }
     return resultChoice(question, args, context)
-  }
+  },
+  userMainstreamScore
 }

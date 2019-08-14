@@ -212,6 +212,8 @@ type Questionnaire {
   questions(orderFilter: [Int!]): [QuestionInterface!]!
 
   turnout: QuestionnaireTurnout
+
+  userMainstreamScore: Int
 }
 
 type QuestionnaireTurnout {
@@ -311,6 +313,8 @@ type QuestionTypeChoice implements QuestionInterface {
   options: [QuestionTypeChoiceOption!]!
 
   result(top: Int, min: Int): [QuestionTypeChoiceResult!]
+
+  userMainstreamScore: Int
 }
 type QuestionTypeChoiceOption {
   label: String!

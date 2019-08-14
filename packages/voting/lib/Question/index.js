@@ -31,6 +31,19 @@ const validateAnswer = async (value, question, context, payload) => {
   }
 }
 
+const userAnswer = async (question, me, pgdb) => {
+  if (!me) {
+    return null
+  }
+  if (question.userAnswer !== undefined) {
+    return question.userAnswer
+  }
+  return pgdb.public.answers.findOne({
+    questionId: question.id,
+    userId: me.id
+  })
+}
+
 const turnout = async (question, pgdb) => {
   const { numSubmitted: getNumSubmittedQuestionnaires } = require('../Questionnaire')
   const { id: questionId, questionnaireId } = question
@@ -69,6 +82,7 @@ const resultForArchive = async (question, args, context) => {
 
 module.exports = {
   validateAnswer,
+  userAnswer,
   turnout,
   resultForArchive,
   validateChoice,
