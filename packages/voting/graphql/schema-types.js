@@ -214,6 +214,7 @@ type Questionnaire {
   turnout: QuestionnaireTurnout
 
   userMainstreamScore: Int
+  mainstreamScoreHistogram: JSON
 }
 
 type QuestionnaireTurnout {

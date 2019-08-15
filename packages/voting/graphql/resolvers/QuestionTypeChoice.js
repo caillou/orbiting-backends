@@ -1,5 +1,5 @@
 const { resultChoice } = require('../../lib/Question')
-const { userMainstreamScore } = require('../../lib/Question/Choice')
+const { userScoreForQuestion } = require('../../lib/MainstreamScore')
 
 module.exports = {
   result (question, args, context) {
@@ -23,5 +23,5 @@ module.exports = {
     }
     return resultChoice(question, args, context)
   },
-  userMainstreamScore
+  userMainstreamScore: userScoreForQuestion
 }
