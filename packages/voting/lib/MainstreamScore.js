@@ -1,4 +1,3 @@
-// TODO dataloader
 const { getQuestionsWithResults, userAnswers: getUserAnswers } = require('./Questionnaire')
 const Promise = require('bluebird')
 const { descending } = require('d3-array')
@@ -21,11 +20,14 @@ const { descending } = require('d3-array')
 }
 */
 
-const userScoreForQuestionnaire = async (questionnaire, args = {}, context) => {
+const userScoreForQuestionnaire = async (questionnaire, args = {}, context, { questionsWithResults }) => {
   const { user: me, pgdb } = context
   const user = args.user || me
 
-  const questionsWithResults = await getQuestionsWithResults(questionnaire, context)
+  // TODO dataloader
+  if (!questionsWithResults) {
+    questionsWithResults = await getQuestionsWithResults(questionnaire, context)
+  }
   const userAnswers = await getUserAnswers(questionnaire, user, pgdb)
 
   const numInRelativeMajority = questionsWithResults.reduce(
@@ -62,9 +64,11 @@ const scoreStatsForQuestionnaire = async (questionnaire, args, context) => {
     questionnaireId: questionnaire.id
   })
 
+  const questionsWithResults = await getQuestionsWithResults(questionnaire, context)
+
   const scores = await Promise.map(
     users,
-    (u) => userScoreForQuestionnaire(questionnaire, { user: u }, context)
+    (u) => userScoreForQuestionnaire(questionnaire, { user: u }, context, { questionsWithResults })
   )
 
   const scoresWithCounts = scores
@@ -89,26 +93,7 @@ const scoreStatsForQuestionnaire = async (questionnaire, args, context) => {
     }))
     .sort((a, b) => descending(a.sortKey, b.sortKey))
 
-  console.log(result)
   return result
-  /*
-    const d3 = require('d3')
-
-    const numTicks = questions.length
-    const extent = d3.extent([0, 100])
-    const bins = d3.histogram()
-      .domain(extent)
-      .thresholds(
-        d3.ticks(extent[0], extent[1], numTicks).slice(0, -1)
-      )(scores)
-
-    return bins.map(bin => ({
-      //...bin,
-      x0: bin.x0,
-      x1: bin.x1,
-      count: bin.length
-    }))
-    */
 }
 
 const updateAnswerAfterHook = async (questionnaire, pgdb) => {
