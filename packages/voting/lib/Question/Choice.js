@@ -49,7 +49,12 @@ const result = async (question, { top, min }, context) => {
         count: (agg && agg.count) || 0
       }
     })
+    .map((p1, i, array) => ({
+      ...p1,
+      hasRelativeMajority: array.findIndex(p2 => p2.option.value != p1.option.value && p2.count >= p1.count) === -1
+    }))
     .sort((a, b) => descending(a.count, b.count))
+
   return options
 }
 

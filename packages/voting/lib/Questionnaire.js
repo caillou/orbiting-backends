@@ -65,9 +65,29 @@ const finalize = async (questionnaire, args, context) => {
   return finalizeLib('questionnaires', questionnaire, result, args, context.pgdb)
 }
 
+const userAnswers = async (questionnaire, user, pgdb) => {
+  if (!user) {
+    return null
+  }
+  return pgdb.query(`
+    SELECT a.*
+    FROM answers a
+    JOIN questions
+      ON a."questionId" = questions.id
+    WHERE
+      questions."questionnaireId" = :questionnaireId AND
+      a."userId" = :userId
+  `, {
+    questionnaireId: questionnaire.id,
+    userId: user.id
+  })
+}
+
 module.exports = {
   ...queries,
   transformQuestion,
   getQuestions,
-  finalize
+  getQuestionsWithResults,
+  finalize,
+  userAnswers
 }

@@ -314,8 +314,6 @@ type QuestionTypeChoice implements QuestionInterface {
   options: [QuestionTypeChoiceOption!]!
 
   result(top: Int, min: Int): [QuestionTypeChoiceResult!]
-
-  userMainstreamScore: Int
 }
 type QuestionTypeChoiceOption {
   label: String!

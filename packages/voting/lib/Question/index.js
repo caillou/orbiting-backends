@@ -31,8 +31,8 @@ const validateAnswer = async (value, question, context, payload) => {
   }
 }
 
-const userAnswer = async (question, me, pgdb) => {
-  if (!me) {
+const userAnswer = async (question, user, pgdb) => {
+  if (!user) {
     return null
   }
   if (question.userAnswer !== undefined) {
@@ -40,7 +40,7 @@ const userAnswer = async (question, me, pgdb) => {
   }
   return pgdb.public.answers.findOne({
     questionId: question.id,
-    userId: me.id
+    userId: user.id
   })
 }
 

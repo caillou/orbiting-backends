@@ -1,9 +1,7 @@
-const { userAnswer: getUserAnswer } = require('./Question')
-const { result: getResult } = require('./Question/Choice')
 // TODO dataloader
-const { getQuestions } = require('./Questionnaire')
+const { getQuestionsWithResults, userAnswers: getUserAnswers } = require('./Questionnaire')
 const Promise = require('bluebird')
-// const uniq = require('lodash/uniq')
+const { descending } = require('d3-array')
 
 /*
   userAnswer: anonymous {
@@ -23,70 +21,45 @@ const Promise = require('bluebird')
 }
 */
 
-const userScoreForQuestion = async (question, args = {}, context) => {
+const userScoreForQuestionnaire = async (questionnaire, args = {}, context) => {
   const { user: me, pgdb } = context
   const user = args.user || me
-  const userAnswer = await getUserAnswer(question, user, pgdb)
-  if (!userAnswer) {
-    return
-  }
 
-  // TODO dataloader
-  const result = await getResult(question, {}, context)
+  const questionsWithResults = await getQuestionsWithResults(questionnaire, context)
+  const userAnswers = await getUserAnswers(questionnaire, user, pgdb)
 
-  const numSubmitted = result.reduce(
-    (agg, r) => r.count + agg,
+  const numInRelativeMajority = questionsWithResults.reduce(
+    (agg, question) => {
+      const userAnswer = userAnswers.find(a => a.questionId === question.id)
+      if (userAnswer) {
+        const majorityResult = question.result.payload.find(r => r.hasRelativeMajority)
+        if (majorityResult && majorityResult.option.value == userAnswer.payload.value[0]) {
+          return agg + 1
+        }
+      }
+      return agg
+    },
     0
   )
 
-  /*
-  const majorityResult = result.find(r => r.count > numSubmitted / 2)
-
-  if (majorityResult && userAnswer.payload.value == majorityResult.option.value) {
-    return Math.round(100 / numSubmitted * majorityResult.count)
-  }
-
-  return 0
-  */
-  const userResult = result.find(r => r.option.value == userAnswer.payload.value)
-  return Math.round(100 / numSubmitted * userResult.count)
-}
-
-const userScoreForQuestionnaire = async (questionnaire, args = {}, context) => {
-  const { pgdb } = context
-  const questions = await getQuestions(questionnaire, args, pgdb)
-
-  const scores = await Promise.map(
-    questions.filter(q => q.type === 'Choice'),
-    (q) => userScoreForQuestion(q, args, context)
-  )
-  /*
-  const total = scores
-    .filter(Boolean)
-    .reduce((agg, s) => s + agg, 0)
-  return Math.round(total / scores.length)
-  */
-  const total = scores
-    .filter(Boolean)
-    .reduce((agg, s) => s > 50 ? agg + 1 : agg, 0)
-
-  return Math.round(100 / questions.length * total)
+  return Math.round(100 / questionsWithResults.length * numInRelativeMajority)
 }
 
 const scoreStatsForQuestionnaire = async (questionnaire, args, context) => {
   const { pgdb } = context
-  const questions = await getQuestions(questionnaire, args, pgdb)
 
   const users = await pgdb.query(`
       SELECT DISTINCT(u.*)
       FROM users u
       JOIN answers a
         ON a."userId" = u.id
+      JOIN questions
+        ON a."questionId" = questions.id
       WHERE
-        ARRAY[a."questionId"] && :questionIds AND
+        questions."questionnaireId" = :questionnaireId AND
         a.submitted = true
     `, {
-    questionIds: questions.map(q => q.id)
+    questionnaireId: questionnaire.id
   })
 
   const scores = await Promise.map(
@@ -108,7 +81,6 @@ const scoreStatsForQuestionnaire = async (questionnaire, args, context) => {
       {}
     )
 
-  const { descending } = require('d3-array')
   const result = Object.keys(scoresWithCounts)
     .map(key => ({
       score: `${key} MP`,
@@ -139,11 +111,33 @@ const scoreStatsForQuestionnaire = async (questionnaire, args, context) => {
     */
 }
 
-const updateUserScores = async (questionnaire, pgdb) => {
+const updateAnswerAfterHook = async (questionnaire, pgdb) => {
+  // getResult for question
+  // update question.result
+  // result: [
+  //   { option: { label: 'Nein', value: 'false' }, count: 78, majority: true },
+  //   { option: { label: 'Ja', value: 'true' }, count: 23, majority: false }
+  // ]
+
+  // if question.result.option.majority changes
+  // update questionnaire.result
+
+  // read all answers of user
+  // update questionnaire submission
+  // agg qsub to questionnaire
+  //
+  // qs.ansers
+  // q.result
+
+}
+
+const userNumIdenticalQuestionnaireSubmissions = async (questionnaire, args, context) => {
+  // load users questionnaire submission
+  // count
+
 }
 
 module.exports = {
-  userScoreForQuestion,
   userScoreForQuestionnaire,
   scoreStatsForQuestionnaire
 }
