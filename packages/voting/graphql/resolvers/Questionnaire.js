@@ -7,7 +7,8 @@ const {
 
 const {
   userScoreForQuestionnaire,
-  scoreStatsForQuestionnaire
+  scoreStatsForQuestionnaire,
+  userNumIdenticalQuestionnaireSubmissions
 } = require('../../lib/MainstreamScore')
 
 module.exports = {
@@ -30,5 +31,6 @@ module.exports = {
     return { entity: questionnaire }
   },
   userMainstreamScore: userScoreForQuestionnaire,
-  mainstreamScoreHistogram: scoreStatsForQuestionnaire
+  mainstreamScoreHistogram: scoreStatsForQuestionnaire,
+  userNumIdenticalQuestionnaireSubmissions
 }

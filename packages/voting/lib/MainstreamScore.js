@@ -116,13 +116,67 @@ const updateAnswerAfterHook = async (questionnaire, pgdb) => {
 
 }
 
-const userNumIdenticalQuestionnaireSubmissions = async (questionnaire, args, context) => {
-  // load users questionnaire submission
-  // count
+const userNumIdenticalQuestionnaireSubmissions = async (questionnaire, args = {}, context) => {
+  const { pgdb, user: me } = context
 
+  const user = args.user || me
+
+  const countedAnswerSets = await pgdb.query(`
+    WITH answer_values AS (
+      SELECT
+        a."userId",
+        jsonb_array_elements(a.payload->'value') as value
+      FROM answers a
+      JOIN questions
+        ON a."questionId" = questions.id
+      WHERE
+        questions."questionnaireId" = :questionnaireId
+    ), user_values AS (
+      SELECT
+        string_agg(
+          CASE WHEN value::text = '"true"' THEN '1' ELSE '0' END,
+          ''
+        ) as values
+      FROM answer_values
+      GROUP BY
+        "userId"
+    )
+    SELECT
+      count(*),
+      values
+    FROM
+      user_values
+    GROUP BY values
+    ORDER BY 1 DESC
+  `, {
+    questionnaireId: questionnaire.id
+  })
+
+  const userAnswers = await getUserAnswers(questionnaire, user, pgdb)
+  const userAnswerSet = userAnswers.reduce(
+    (agg, a) => {
+      if (a.payload.value[0] == 'true') {
+        agg = `${agg}1`
+      } else {
+        agg = `${agg}0`
+      }
+      return agg
+    },
+    ''
+  )
+
+  console.log({ countedAnswerSets, userAnswerSet })
+
+  const answerSet = countedAnswerSets.find(s => s.values == userAnswerSet)
+
+  if (answerSet) {
+    return answerSet.count - 1
+  }
+  return 0
 }
 
 module.exports = {
   userScoreForQuestionnaire,
-  scoreStatsForQuestionnaire
+  scoreStatsForQuestionnaire,
+  userNumIdenticalQuestionnaireSubmissions
 }
