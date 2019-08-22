@@ -355,6 +355,7 @@ type QuestionTypeChoiceOption {
 type QuestionTypeChoiceResult {
   option: QuestionTypeChoiceOption!
   count: Int!
+  hasRelativeMajority: Boolean!
 }
 type QuestionTypeChoiceResultHistory {
   date: DateTime!

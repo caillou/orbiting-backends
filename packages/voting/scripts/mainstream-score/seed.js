@@ -93,4 +93,9 @@ PgDb.connect().then(async pgdb => {
   )
 
   console.log('finished')
+}).then(() => {
+  process.exit()
+}).catch(e => {
+  console.log(e)
+  process.exit(1)
 })
