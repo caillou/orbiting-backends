@@ -213,9 +213,38 @@ type Questionnaire {
 
   turnout: QuestionnaireTurnout
 
+  # user's num answers with majority
   userMainstreamScore: Int
-  mainstreamScoreHistogram: JSON
-  userNumIdenticalQuestionnaireSubmissions: Int
+
+  mainstreamScoreStats: [MainstreamScoreStat!]
+  answerSets: QuestionnaireAnswerSets
+}
+
+type MainstreamScoreStat {
+  score: Int!
+  count: Int!
+}
+
+type QuestionnaireAnswerSets {
+  sets: [QuestionnaireAnswerSet!]!
+  setRelationships: [QuestionnaireAnswerSetRelationship!]!
+  userAnswerSet: QuestionnaireAnswerSet
+  userInvertedAnswerSet: QuestionnaireAnswerSet
+}
+
+type QuestionnaireAnswerSet {
+  id: ID!
+  userCount: Int!
+  # binary string
+  values: String!
+}
+
+type QuestionnaireAnswerSetRelationship {
+  id: ID!
+  source: String!
+  target: String!
+  numMismatchingAnswers: Int!
+  combinedUsersCount: Int!
 }
 
 type QuestionnaireTurnout {
@@ -315,6 +344,8 @@ type QuestionTypeChoice implements QuestionInterface {
   options: [QuestionTypeChoiceOption!]!
 
   result(top: Int, min: Int): [QuestionTypeChoiceResult!]
+
+  resultHistory: [QuestionTypeChoiceResultHistory!]!
 }
 type QuestionTypeChoiceOption {
   label: String!
@@ -324,6 +355,10 @@ type QuestionTypeChoiceOption {
 type QuestionTypeChoiceResult {
   option: QuestionTypeChoiceOption!
   count: Int!
+}
+type QuestionTypeChoiceResultHistory {
+  date: DateTime!
+  trueRatio: Float!
 }
 
 input AnswerInput {

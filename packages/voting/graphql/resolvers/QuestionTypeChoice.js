@@ -1,5 +1,9 @@
 const { resultChoice } = require('../../lib/Question')
 
+const {
+  questionResultHistory
+} = require('../../lib/MainstreamScore')
+
 module.exports = {
   result (question, args, context) {
     if (question.result !== undefined) {
@@ -21,5 +25,6 @@ module.exports = {
       return null
     }
     return resultChoice(question, args, context)
-  }
+  },
+  resultHistory: questionResultHistory
 }

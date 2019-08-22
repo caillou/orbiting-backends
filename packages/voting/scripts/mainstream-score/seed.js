@@ -3,6 +3,7 @@ require('@orbiting/backend-modules-env').config()
 const Promise = require('bluebird')
 const PgDb = require('@orbiting/backend-modules-base/lib/PgDb')
 const Questionnaire = require('@orbiting/backend-modules-voting/lib/Questionnaire')
+const moment = require('moment')
 
 const getRandomUserIds = (questionnaireId, limit, pgdb) =>
   pgdb.query(`
@@ -26,6 +27,7 @@ const getRandomUserIds = (questionnaireId, limit, pgdb) =>
 PgDb.connect().then(async pgdb => {
   const slug = process.argv[2]
   const numUsers = parseInt(process.argv[3]) || 120
+
   if (!slug) {
     throw new Error('first parameter must be the questionnaire slug to seed')
   }
@@ -43,11 +45,28 @@ PgDb.connect().then(async pgdb => {
     () => getRandomUserId(questionnaire.id, pgdb)
   )
   */
+
+  const timeCount = 4
+  const timeUnit = 'hours'
+  const now = moment()
+
+  const startTime = moment(now).subtract(timeCount, timeUnit)
+
+  const numSeconds = moment(now).diff(startTime, 'seconds')
+
   const userIds = await getRandomUserIds(questionnaire.id, numUsers, pgdb)
+  const usersStartDate = userIds.reduce(
+    (agg, id) => {
+      const offsetSecs = Math.round(Math.random() * numSeconds)
+      agg[id] = moment(startTime).add(offsetSecs, 'seconds').toDate()
+      return agg
+    },
+    {}
+  )
 
   await Promise.each(
     questions,
-    async (q) => {
+    async (q, qIndex) => {
       const bias = Math.round(Math.random())
 
       await Promise.each(
@@ -65,7 +84,8 @@ PgDb.connect().then(async pgdb => {
             questionnaireId: questionnaire.id,
             userId,
             payload: { value: [option.value] },
-            submitted: true
+            submitted: true,
+            createdAt: moment(usersStartDate[userId]).add(qIndex * 2, 'seconds').toDate()
           })
         }
       )

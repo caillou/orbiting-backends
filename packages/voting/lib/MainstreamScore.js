@@ -1,6 +1,6 @@
 const { getQuestionsWithResults, userAnswers: getUserAnswers } = require('./Questionnaire')
 const Promise = require('bluebird')
-const { descending } = require('d3-array')
+const { descending, ascending } = require('d3-array')
 
 /*
   userAnswer: anonymous {
@@ -87,96 +87,216 @@ const scoreStatsForQuestionnaire = async (questionnaire, args, context) => {
 
   const result = Object.keys(scoresWithCounts)
     .map(key => ({
-      score: `${key} MP`,
-      sortKey: parseInt(key),
+      score: parseInt(key),
       count: scoresWithCounts[key]
     }))
-    .sort((a, b) => descending(a.sortKey, b.sortKey))
+    .sort((a, b) => descending(a.score, b.score))
 
   return result
 }
 
-const updateAnswerAfterHook = async (questionnaire, pgdb) => {
-  // getResult for question
-  // update question.result
-  // result: [
-  //   { option: { label: 'Nein', value: 'false' }, count: 78, majority: true },
-  //   { option: { label: 'Ja', value: 'true' }, count: 23, majority: false }
-  // ]
+const answersToBinaryString = (answers) =>
+  answers.reduce(
+    (agg, a) =>
+      agg + (a.payload.value[0] == 'true' ? '1' : '0'),
+    ''
+  )
 
-  // if question.result.option.majority changes
-  // update questionnaire.result
-
-  // read all answers of user
-  // update questionnaire submission
-  // agg qsub to questionnaire
-  //
-  // qs.ansers
-  // q.result
-
+const stringToBinaryBuffer = (string) => Buffer.from(string, 'binary')
+// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Bitwise_Operators
+const binaryBufferToString = (buf) => {
+  let result = ''
+  for (var i = 0; i < buf.length; ++i) {
+    result += buf[i] & 1
+  }
+  return result
 }
 
-const userNumIdenticalQuestionnaireSubmissions = async (questionnaire, args = {}, context) => {
+const xorBuffers = (buf1, buf2) => {
+  const length = Math.min(buf1.length, buf2.length)
+  const result = Buffer.alloc(length)
+
+  for (var i = 0; i < length; ++i) {
+    result[i] = buf1[i] ^ buf2[i]
+  }
+
+  return result
+}
+
+const countBits = buf => {
+  let counter = 0
+  for (var i = 0; i < buf.length; ++i) {
+    counter += buf[i] & 1
+  }
+  return counter
+}
+
+const invertBits = buf => {
+  const length = buf.length
+  const result = Buffer.alloc(length)
+
+  for (var i = 0; i < length; ++i) {
+    result[i] = ~buf[i]
+  }
+
+  return result
+}
+
+const getNumMismatchingAnswers = (set1, set2) => {
+  const xor = xorBuffers(
+    stringToBinaryBuffer(set1.values),
+    stringToBinaryBuffer(set2.values)
+  )
+  return countBits(xor)
+}
+
+const answerSetsForQuestionnaire = async (questionnaire, args = {}, context) => {
   const { pgdb, user: me } = context
 
   const user = args.user || me
 
-  const countedAnswerSets = await pgdb.query(`
-    WITH answer_values AS (
+  const { id: questionnaireId } = questionnaire
+
+  const numQuestions = await pgdb.public.questions.count({ questionnaireId })
+
+  const countedAnswerSets = (await pgdb.query(`
+    WITH questionnaire_answers AS (
       SELECT
-        a."userId",
-        jsonb_array_elements(a.payload->'value') as value
+        a."userId" as "userId",
+        jsonb_array_elements(a.payload->'value') as value,
+        questions.order as _order
       FROM answers a
       JOIN questions
         ON a."questionId" = questions.id
       WHERE
+        a.submitted = true AND
         questions."questionnaireId" = :questionnaireId
+      ORDER BY
+        questions.order ASC
     ), user_values AS (
       SELECT
         string_agg(
-          CASE WHEN value::text = '"true"' THEN '1' ELSE '0' END,
+          -- answersToBinaryString in SQL
+          CASE WHEN value::text = '"true"'
+            THEN '1'
+            ELSE '0'
+          END,
           ''
+          ORDER BY _order ASC
         ) as values
-      FROM answer_values
-      GROUP BY
-        "userId"
+      FROM questionnaire_answers
+        GROUP BY
+          "userId"
     )
     SELECT
-      count(*),
-      values
+      count(*) as "userCount",
+      values,
+      values as id
     FROM
       user_values
     GROUP BY values
     ORDER BY 1 DESC
   `, {
-    questionnaireId: questionnaire.id
-  })
+    questionnaireId
+  }))
+    .filter(set => set.values.length === numQuestions)
 
   const userAnswers = await getUserAnswers(questionnaire, user, pgdb)
-  const userAnswerSet = userAnswers.reduce(
-    (agg, a) => {
-      if (a.payload.value[0] == 'true') {
-        agg = `${agg}1`
-      } else {
-        agg = `${agg}0`
+  const userAnswerValues = answersToBinaryString(userAnswers)
+
+  const userAnswerSet = countedAnswerSets.find(s => s.values == userAnswerValues)
+  const userInvertedAnswerValues =
+    binaryBufferToString(
+      invertBits(
+        stringToBinaryBuffer(userAnswerValues)
+      )
+    )
+  const userInvertedAnswerSet = countedAnswerSets.find(s => s.values == userInvertedAnswerValues)
+
+  const setRelationships = []
+  countedAnswerSets
+    .filter(set => set.userCount > 1)
+    .forEach((set1, index1, answerSets) => {
+      for (let index2 = index1 + 1; index2 < answerSets.length; index2++) {
+        const set2 = answerSets[index2]
+        const rel = {
+          id: `${set1.values}-${set2.values}`,
+          source: set1.values,
+          target: set2.values,
+          numMismatchingAnswers: getNumMismatchingAnswers(set1, set2),
+          combinedUsersCount: set1.userCount + set2.userCount
+        }
+        setRelationships.push(rel)
       }
-      return agg
-    },
-    ''
-  )
+    }
+    )
 
-  console.log({ countedAnswerSets, userAnswerSet })
-
-  const answerSet = countedAnswerSets.find(s => s.values == userAnswerSet)
-
-  if (answerSet) {
-    return answerSet.count - 1
+  const result = {
+    sets: countedAnswerSets,
+    userAnswerSet,
+    userInvertedAnswerSet,
+    setRelationships: setRelationships.sort(
+      (a, b) =>
+        descending(a.combinedUsersCount, b.combinedUsersCount) ||
+        descending(a.numMismatchingAnswers, b.numMismatchingAnswers)
+    )
   }
-  return 0
+
+  return result
+}
+
+const questionResultHistory = async (question, args, context) => {
+  const { pgdb } = context
+
+  const dateCounts = await pgdb.query(`
+    WITH all_values AS (
+      -- 2019-08-20 13-30-10+00 | "true"
+      -- 2019-08-20 13-30-01+00 | "true"
+      SELECT
+        date_trunc('second', "createdAt") as date,
+        jsonb_array_elements(payload->'value') as value
+      FROM
+        answers
+      WHERE
+        submitted = true AND
+        "questionId" = :questionId
+    ), date_counts AS (
+      -- 2019-08-20 00-06-04+00 |        23 |         77
+      -- 2019-08-20 00-06-13+00 |       110 |         35
+      SELECT
+        date,
+        COUNT(*) FILTER (WHERE value::text = '"true"') as "trueCount",
+        COUNT(*) FILTER (WHERE value::text = '"false"') as "falseCount"
+      FROM all_values
+      GROUP BY
+        1
+      ORDER BY
+        1 ASC
+    )
+    -- 2019-08-20 00-06-04+00 |        23 |         77
+    -- 2019-08-20 00-06-13+00 |       133 |        112
+    SELECT
+      date,
+      sum("trueCount") OVER (ORDER BY date ASC ROWS BETWEEN unbounded preceding and current row) as "trueCount",
+      sum("falseCount") OVER (ORDER BY date ASC ROWS BETWEEN unbounded preceding and current row) as "falseCount"
+    FROM
+      date_counts
+  `, {
+    questionId: question.id
+  })
+
+  const result = dateCounts
+    .map(({ date, trueCount, falseCount }) => ({
+      date,
+      trueRatio: parseInt(trueCount) / (parseInt(trueCount) + parseInt(falseCount))
+    }))
+
+  return result
 }
 
 module.exports = {
   userScoreForQuestionnaire,
   scoreStatsForQuestionnaire,
-  userNumIdenticalQuestionnaireSubmissions
+  answerSetsForQuestionnaire,
+  questionResultHistory
 }
