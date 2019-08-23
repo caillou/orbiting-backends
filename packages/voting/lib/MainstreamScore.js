@@ -213,23 +213,51 @@ const answerSetsForQuestionnaire = async (questionnaire, args = {}, context) => 
     )
   const userInvertedAnswerSet = countedAnswerSets.find(s => s.values == userInvertedAnswerValues)
 
+  const topAnswerSet = countedAnswerSets[0]
+
   const setRelationships = []
+  const relationshipsIds = {}
   countedAnswerSets
     .filter(set => set.userCount > 1)
     .forEach((set1, index1, answerSets) => {
-      for (let index2 = index1 + 1; index2 < answerSets.length; index2++) {
-        const set2 = answerSets[index2]
-        const rel = {
-          id: `${set1.values}-${set2.values}`,
-          source: set1.values,
-          target: set2.values,
-          numMismatchingAnswers: getNumMismatchingAnswers(set1, set2),
-          combinedUsersCount: set1.userCount + set2.userCount
-        }
-        setRelationships.push(rel)
+      if (index1 > 0) {
+        set1.distToTop = getNumMismatchingAnswers(set1, topAnswerSet)
       }
-    }
-    )
+
+      const nodeRelationships = []
+
+      // for (let index2 = index1 + 1; index2 < answerSets.length; index2++) {
+      for (let index2 = 0; index2 < answerSets.length; index2++) {
+        if (index2 !== index1) {
+          const set2 = answerSets[index2]
+          const rel = {
+            id: `${set1.values}-${set2.values}`,
+            source: set1.values,
+            target: set2.values,
+            numMismatchingAnswers: getNumMismatchingAnswers(set1, set2),
+            combinedUsersCount: set1.userCount + set2.userCount
+          }
+          nodeRelationships.push(rel)
+        }
+      }
+
+      const minNumMismatchingAnswers = nodeRelationships.reduce((agg, r) => Math.min(agg, r.numMismatchingAnswers), 10)
+      const maxCombinedUsersCount = nodeRelationships
+        .filter(r => r.numMismatchingAnswers === minNumMismatchingAnswers)
+        .reduce((agg, r) => Math.max(agg, r.combinedUsersCount), 0)
+
+      // console.log(minNumMismatchingAnswers)
+      nodeRelationships.forEach(r => {
+        if (r.numMismatchingAnswers === minNumMismatchingAnswers && r.combinedUsersCount === maxCombinedUsersCount) {
+          const relIds = [`${r.source}${r.target}`, `${r.target}${r.source}`]
+          if (!relationshipsIds[relIds[0]] && !relationshipsIds[relIds[1]]) {
+            relationshipsIds[relIds[0]] = true
+            relationshipsIds[relIds[1]] = true
+            setRelationships.push(r)
+          }
+        }
+      })
+    })
 
   const result = {
     sets: countedAnswerSets,

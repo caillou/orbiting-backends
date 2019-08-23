@@ -237,6 +237,7 @@ type QuestionnaireAnswerSet {
   userCount: Int!
   # binary string
   values: String!
+  distToTop: Int
 }
 
 type QuestionnaireAnswerSetRelationship {
