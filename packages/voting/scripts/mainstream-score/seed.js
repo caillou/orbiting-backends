@@ -64,26 +64,39 @@ PgDb.connect().then(async pgdb => {
     {}
   )
 
+  const answerValues = '1111010000'
+
+  const bias1 = '1111100000'
+  const bias2 = '0000011111'
+  const getBias = (qIndex) => bias2.charAt(qIndex)
+
   await Promise.each(
     questions,
     async (q, qIndex) => {
-      const bias = Math.round(Math.random())
+      //const bias = Math.round(Math.random())
 
-      await Promise.each(
+      await Promise.all(
         userIds,
         async (userId) => {
-          const optionIndex = Math.round(Math.random()) === 1
-            ? bias
+          // bias
+          const optionIndex = Math.round(Math.random() * 4) !== 4
+            ? getBias(qIndex) // bias
             : Math.round(Math.random())
-          // const optionIndex = Math.round(Math.random())
+
+          // totaly random
+          //const optionIndex = Math.round(Math.random())
 
           const option = q.options[optionIndex]
+
+          // fixed
+          //const fixedValue = answerValues.charAt(qIndex) === '1' ? 'true' : 'false'
 
           await pgdb.public.answers.insert({
             questionId: q.id,
             questionnaireId: questionnaire.id,
             userId,
             payload: { value: [option.value] },
+            //payload: { value: [fixedValue] },
             submitted: true,
             createdAt: moment(usersStartDate[userId]).add(qIndex * 2, 'seconds').toDate()
           })
