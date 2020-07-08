@@ -38,9 +38,11 @@ const start = async (
   t,
   connectionContext,
   createGraphqlContext = identity => identity,
+  loggingContext,
   workerId
 ) => {
   const { pgdb, redis } = connectionContext
+  const { logger } = loggingContext
 
   const server = express()
   const httpServer = createServer(server)
@@ -80,9 +82,7 @@ const start = async (
     server.use(
       timeout(REQ_TIMEOUT, { respond: false }),
       (req, res, next) => {
-        req.on('timeout', () => {
-          console.log('request timedout:', req._log())
-        })
+        req.on('timeout', () => logger.error('request timed out:', req._log()))
         next()
       }
     )
@@ -107,12 +107,15 @@ const start = async (
     pgdb
   })
 
+  const graphqlLogger = logger.child({ component: 'graphql' })
+
   graphql(
     server,
     httpServer,
     pgdb,
     graphqlSchema,
-    createGraphqlContext
+    createGraphqlContext,
+    graphqlLogger
   )
 
   graphiql(server)
@@ -124,7 +127,7 @@ const start = async (
   let closed = false
   const close = async () => {
     if (closed) {
-      console.log('server already closed')
+      logger.warn('server already closed')
       return
     }
 
@@ -142,9 +145,9 @@ const start = async (
   return new Promise((resolve) => {
     const callback = () => {
       if (workerId) {
-        console.info(`server (${workerId}) is running on http://${HOST}:${PORT}`)
+        logger.info(`server (${workerId}) is running on http://${HOST}:${PORT}`)
       } else {
-        console.info(`server is running on http://${HOST}:${PORT}`)
+        logger.info(`server is running on http://${HOST}:${PORT}`)
       }
       resolve(result)
     }

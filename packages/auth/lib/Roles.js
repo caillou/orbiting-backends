@@ -9,11 +9,9 @@ const userHasRole = (user, role) => {
 
 const ensureUserHasRole = (user, role) => {
   if (!user) {
-    console.info('signIn', { stack: new Error().stack })
     throw new Error(t('api/signIn'))
   }
   if (!userHasRole(user, role)) {
-    console.info('unauthorized', { stack: new Error().stack })
     throw new Error(t.pluralize('api/unauthorized', {
       count: 1,
       role: `«${role}»`
@@ -30,11 +28,9 @@ const userIsInRoles = (user, roles = []) => {
 
 const ensureUserIsInRoles = (user, roles) => {
   if (!user) {
-    console.info('signIn', { stack: new Error().stack })
     throw new Error(t('api/signIn'))
   }
   if (!userIsInRoles(user, roles)) {
-    console.info('unauthorized', { stack: new Error().stack })
     throw new Error(t.pluralize('api/unauthorized', {
       count: roles.length,
       role: roles

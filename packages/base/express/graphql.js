@@ -1,23 +1,24 @@
 const { ApolloServer } = require('apollo-server-express')
 const { makeExecutableSchema } = require('apollo-server')
-
 const cookie = require('cookie')
 const cookieParser = require('cookie-parser')
+
 const { transformUser } = require('@orbiting/backend-modules-auth')
-const util = require('util')
 
 const {
-  NODE_ENV,
   WS_KEEPALIVE_INTERVAL,
   RES_KEEPALIVE
 } = process.env
+
+const DEV = process.env.NODE_ENV && process.env.NODE_ENV !== 'production'
 
 module.exports = (
   server,
   httpServer,
   pgdb,
   graphqlSchema,
-  createGraphqlContext = identity => identity
+  createGraphqlContext = identity => identity,
+  logger
 ) => {
   const executableSchema = makeExecutableSchema({
     ...graphqlSchema,
@@ -51,14 +52,14 @@ module.exports = (
     context: ({ req, connection }) => connection
       ? connection.context
       : createContext({ user: req.user, req }),
-    debug: true,
+    debug: DEV,
     introspection: true,
     playground: false, // see ./graphiql.js
     subscriptions: {
       onConnect: async (connectionParams, websocket) => {
         try {
           // apollo-fetch used in tests sends cookie on the connectionParams
-          const cookiesRaw = (NODE_ENV === 'development' && connectionParams.cookies)
+          const cookiesRaw = (DEV && connectionParams.cookies)
             ? connectionParams.cookies
             : websocket.upgradeReq.headers.cookie
           if (!cookiesRaw) {
@@ -79,20 +80,14 @@ module.exports = (
           }
           return createContext()
         } catch (e) {
-          console.error('error in subscriptions.onConnect', e)
-          // throwing inside onConnect disconnects the client
-          throw new Error('error in subscriptions.onConnect')
+          logger.error(e)
         }
       },
       keepAlive: WS_KEEPALIVE_INTERVAL || 40000
     },
-    formatError: (error) => {
-      console.log(
-        `graphql error in ${this.operationName} (${JSON.stringify(this.variables)}):`,
-        util.inspect(error, { depth: null, colors: true, breakLength: 300 })
-      )
-      delete error.extensions.exception
-      return error
+    formatError: err => {
+      logger.error(err)
+      return err
     },
     formatResponse: (response, { context }) => {
       // strip problematic character (\u2028) for requests from our iOS app
@@ -121,5 +116,6 @@ module.exports = (
       limit: '128mb'
     }
   })
+
   apolloServer.installSubscriptionHandlers(httpServer)
 }

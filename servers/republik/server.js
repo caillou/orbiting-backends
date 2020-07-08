@@ -3,7 +3,7 @@ const cluster = require('cluster')
 
 const {
   server: Server,
-  lib: { ConnectionContext }
+  lib: { ConnectionContext, Logging }
 } = require('@orbiting/backend-modules-base')
 const { NotifyListener: SearchNotifyListener } = require('@orbiting/backend-modules-search')
 const { t } = require('@orbiting/backend-modules-translate')
@@ -70,7 +70,7 @@ const start = async () => {
 }
 
 // in cluster mode, this runs after runOnce otherwise before
-const run = async (workerId, config) => {
+const run = async (workerId) => {
   const localModule = require('./graphql')
   const graphqlSchema = merge(
     localModule,
@@ -128,11 +128,17 @@ const run = async (workerId, config) => {
 
   const connectionContext = await ConnectionContext.create(applicationName)
 
+  const loggingContext = Logging({
+    name: 'backends',
+    workerId: workerId
+  })
+
   const createGraphQLContext = (defaultContext) => {
     const loaders = {}
     const context = {
       ...defaultContext,
       ...connectionContext,
+      ...loggingContext,
       t,
       signInHooks,
       mail,
@@ -150,8 +156,8 @@ const run = async (workerId, config) => {
     t,
     connectionContext,
     createGraphQLContext,
-    workerId,
-    config
+    loggingContext,
+    workerId
   )
 
   const close = () => {
