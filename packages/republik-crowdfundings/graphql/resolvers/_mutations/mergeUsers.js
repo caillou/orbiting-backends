@@ -208,7 +208,15 @@ module.exports = async (_, args, context) => {
 
     // try to move other stuff without failing
     const operations = [
-      () => transaction.public.answers.update(from, to),
+      () =>
+        transaction.public.answers.insert(
+          transaction.public.answers.insert
+            .deleteAndGet(from)
+            .map((record) => ({
+              ...record,
+              ...to,
+            })),
+        ),
       () => transaction.public.ballots.update(from, to),
       () => transaction.public.cards.update(from, to),
       () => transaction.public.collectionDocumentItems.update(from, to),
